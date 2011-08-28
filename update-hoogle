@@ -13,7 +13,10 @@
 #   use: hoogle -d ~/.hoogle
 #
 # - requires hoogle-server and add-documentation-location.hs to be in $PATH
-
+#
+# add the line
+#     | local_ && "/home/" `isPrefixOf` path = serveFile False path
+# to hoogle Server.hs, this will get you fewer dead links
 
 CABALDOCDIR="$HOME/.cabal/share/doc"
 GHCINSTALL="$HOME/haskell"
@@ -44,6 +47,7 @@ do
     echo "adding bootlib: $BOOTBASE"
     mkdir "$CABALDOCDIR/$BOOTBASE"
     cp -r "$BOOTLIB" "$CABALDOCDIR/$BOOTBASE/html"
+    # wh
   fi
   HOOFILE="$HOME/.hoogle/index/$BOOTBASE.hoo"
   if [[ ! -e "$HOOFILE" ]]
@@ -87,14 +91,17 @@ do
       if [[ ! -e "$DOCFILE" ]]
       then
         cabal unpack "$PKG"
-        pushd "$PKG"
-        cabal configure
-        cabal haddock --hoogle
-        cabal haddock --html --hyperlink-source
-        mkdir "$CABALDOCDIR/$PKG"
-        mkdir "$CABALDOCDIR/$PKG/html"
-        (cd "dist/doc/html/$PKGBASE" ; cp -r * "$CABALDOCDIR/$PKG/html/")
-        popd
+        if [[ -e "$PKG" ]]
+        then
+          pushd "$PKG"
+          cabal configure
+          cabal haddock --hoogle
+          cabal haddock --html --hyperlink-source --executables --internal
+          mkdir "$CABALDOCDIR/$PKG"
+          mkdir "$CABALDOCDIR/$PKG/html"
+          (cd "dist/doc/html/$PKGBASE" ; cp -r * "$CABALDOCDIR/$PKG/html/")
+          popd
+        fi
       fi
       add-documentation-location.hs "$PKG" "$PKG/$DOCFILE" > "$HOOFILE"
       hoogle convert "$HOOFILE"
