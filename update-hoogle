@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# this script generates a hoogle index for all installed packages
+# it also tries to add hyperlinked source links to the haddock 
+# for all installed packages
+
+# NOTES:
+# - script assumes that ghc is installed in home directory, it copies
+#   documentation for boot libraries to make sure that all hyperlinks
+#   work
+#
+# - all hoogle index files and unpacked packages are in ~/.hoogle
+#   use: hoogle -d ~/.hoogle
+#
+# - requires hoogle-server and add-documentation-location.hs to be in $PATH
+
+
+CABALDOCDIR="$HOME/.cabal/share/doc"
+GHCINSTALL="$HOME/haskell"
+
+WD=$PWD
+
+mkdir "$HOME/.hoogle"
+mkdir "$HOME/.hoogle/pkgs"
+mkdir "$HOME/.hoogle/index"
+mkdir "$HOME/.hoogle/doc"
+
+DIRTY=0
+
+# boot libs are special, they already have hyperlinked source and hoogle files
+# copy them to the cabal dir
+find $GHCINSTALL -path "*/share/doc/ghc/html/libraries/*-*[0-9]" -type d | while read BOOTLIB
+do
+  BOOTBASE=`basename "$BOOTLIB"`
+  if [[ $BOOTBASE =~ ^(.*)-([^-]+)$ ]] ; then
+#    echo "pkg ok"
+    sleep 0
+  fi
+  BOOTNAME=${BASH_REMATCH[1]}
+  BOOTVER=${BASH_REMATCH[2]}
+
+  if [[ ! -e "$CABALDOCDIR/$BOOTBASE" ]]
+  then
+    echo "adding bootlib: $BOOTBASE"
+    mkdir "$CABALDOCDIR/$BOOTBASE"
+    cp -r "$BOOTLIB" "$CABALDOCDIR/$BOOTBASE/html"
+  fi
+  HOOFILE="$HOME/.hoogle/index/$BOOTBASE.hoo"
+  if [[ ! -e "$HOOFILE" ]]
+  then
+    echo "generating bootlib hoogle: $BOOTBASE ($HOOFILE)"
+    add-documentation-location.hs "$BOOTBASE" "$BOOTLIB/$BOOTNAME.txt" > "$HOOFILE"
+    hoogle convert "$HOOFILE"
+    DIRTY=1
+  fi
+done
+
+pushd "$HOME/.hoogle/pkgs"
+if [[ $1 ]]
+then
+  rm "$HOME/.hoogle/index/$1.hoo"
+  PKGS=$1
+else
+  PKGS=`ghc-pkg list --simple-output`
+fi
+
+IGNORE="^(ghc|base|rts|ffi|bin-package-db|integer-gmp|Cabal|bytestring)-"
+
+for PKG in $PKGS
+do
+  if [[ $PKG =~ $IGNORE ]]
+  then
+#    echo "ignoring $PKG"
+   sleep 0
+  else
+    if [[ $PKG =~ ^(.*)-([^-]+)$ ]] ; then
+#      echo "pkg ok"
+      sleep 0
+    fi
+    PKGBASE=${BASH_REMATCH[1]}
+    PKGVER=${BASH_REMATCH[2]}
+    HOOFILE="$HOME/.hoogle/index/$PKG.hoo"
+    DOCFILE="dist/doc/html/$PKGBASE/$PKGBASE.txt"
+    if [ ! -e $HOOFILE ]
+    then
+      echo "updating $PKG"
+      if [[ ! -e "$DOCFILE" ]]
+      then
+        cabal unpack "$PKG"
+        pushd "$PKG"
+        cabal configure
+        cabal haddock --hoogle
+        cabal haddock --html --hyperlink-source
+        mkdir "$CABALDOCDIR/$PKG"
+        mkdir "$CABALDOCDIR/$PKG/html"
+        (cd "dist/doc/html/$PKGBASE" ; cp -r * "$CABALDOCDIR/$PKG/html/")
+        popd
+      fi
+      add-documentation-location.hs "$PKG" "$PKG/$DOCFILE" > "$HOOFILE"
+      hoogle convert "$HOOFILE"
+      DIRTY=1
+    fi
+  fi
+done
+popd
+
+if [[ $DIRTY == 1 ]]
+then
+  pushd "$HOME/.hoogle/"
+  hoogle combine $HOME/.hoogle/index/*.hoo
+# for INST in $HOME/.cabal/share/hoogle-*
+# do
+#   cp "default.hoo" "$INST/databases"
+# done
+  popd
+fi
+
+pushd "$HOME/.hoogle"
+hoogle-server >/dev/null 2>&1
+popd
+

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# run the hoogle server
+# 
+# WARNING: this runs hoogle with -l to serve haddock files, this exposes
+#          all files readable under your account. Make sure to block the
+#          port (16004 is 'hoogl' in upside-down calculator mode) in your
+#          firewall
+#
+
+killall -9 hoogle
+sleep 1
+hoogle server -d $HOME/.hoogle -p 16004 -l & >/dev/null 2>&1
+
