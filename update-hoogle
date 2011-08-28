@@ -114,7 +114,9 @@ popd
 if [[ $DIRTY == 1 ]]
 then
   pushd "$HOME/.hoogle/"
-  hoogle combine $HOME/.hoogle/index/*.hoo
+  LATEST=`latest-hoo-versions.hs "$HOME/.hoogle/index"`
+  hoogle combine $LATEST
+#  hoogle combine $HOME/.hoogle/index/*.hoo
 # for INST in $HOME/.cabal/share/hoogle-*
 # do
 #   cp "default.hoo" "$INST/databases"
